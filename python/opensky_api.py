@@ -21,6 +21,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+import sys
 import calendar
 import logging
 import pprint
@@ -33,9 +34,12 @@ import time
 logging.basicConfig()
 logger = logging.getLogger('opensky_api')
 
-class StateVector(object):
-    """ Represents the state of a vehicle at a particular time
-    It has the following fields:
+
+class OpenSkyApi(object):
+    """
+    Main class of the OpenSky Network API. Instances retrieve data from OpenSky via HTTP
+
+    The keys below represent the state of a vehicle at a particular time:
       * **icao24** - ICAO24 address of the transmitter in hex string representation.
       * **callsign** - callsign of the vehicle. Can be None if no callsign has been received.
       * **country** - inferred through the ICAO24 address
@@ -53,36 +57,6 @@ class StateVector(object):
     keys = ["icao24", "callsign", "origin_country", "time_position",
             "time_velocity", "longitude", "latitude", "altitude", "on_ground",
             "velocity", "heading", "vertical_rate", "sensors"]
-
-    def __init__(self, arr):
-        """ arr is the array representation of a state vector as received by the API """
-        self.__dict__ = dict(zip(StateVector.keys, arr))
-
-    def __repr__(self):
-        return pprint.pformat(self.__dict__, indent=4)
-
-
-class OpenSkyStates(object):
-    """ Represents the state of the airspace as seen by OpenSky at a particular time
-    It has the following fields
-      * **time** - in seconds since epoch (Unix time stamp). Gives the validity period of all states. All vectors represent the state of a vehicle with the interval :math:`[time - 1, time]`.
-      * **states** - a list of `StateVector` or is None if there have been no states received
-    """
-    def __init__(self, j):
-        self.__dict__ = j
-        if self.states is not None:
-            self.states = [StateVector(a) for a in self.states]
-        else:
-            self.states = []
-
-    def __repr__(self):
-        return pprint.pformat(self.__dict__, indent=4)
-
-
-class OpenSkyApi(object):
-    """
-    Main class of the OpenSky Network API. Instances retrieve data from OpenSky via HTTP
-    """
     def __init__(self, username=None, password=None):
         """ Create an instance of the API client. If you do not provide username and password requests will be
         anonymous which imposes some limitations.
@@ -125,7 +99,7 @@ class OpenSkyApi(object):
 
         :param time_secs: time as Unix time stamp (seconds since epoch) or datetime. The datetime must be in UTC!
         :param icao24: optionally retrieve only state vectors for the given ICAO24 address(es). The parameter can either be a single address as str or an array of str containing multiple addresses
-        :return: OpenSkyStates if request was successful, None otherwise
+        :return: dict if request was successful, None otherwise
         """
         if not self._check_rate_limit(10, 5, self.get_states):
             logger.warn("Blocking request due to rate limit")
@@ -137,7 +111,13 @@ class OpenSkyApi(object):
         states_json = self._get_json("/states/all", self.get_states,
                                      params={"time": int(t), "icao24": icao24})
         if states_json is not None:
-            return OpenSkyStates(states_json)
+            return {
+                    'time': states_json['time'],
+                    'states': [
+                        {**dict(zip(OpenSkyApi.keys, elements))}
+                        for elements in states_json['states']
+                        ],
+                    }
         return None
 
     def get_my_states(self, time_secs=0, icao24=None, serials=None):
@@ -148,7 +128,7 @@ class OpenSkyApi(object):
         :param time_secs: time as Unix time stamp (seconds since epoch) or datetime. The datetime must be in UTC!
         :param icao24: optionally retrieve only state vectors for the given ICAO24 address(es). The parameter can either be a single address as str or an array of str containing multiple addresses
         :param serials: optionally retrieve only states of vehicles as seen by the given sensor(s). The parameter can either be a single sensor serial number (int) or a list of serial numbers.
-        :return: OpenSkyStates if request was successful, None otherwise
+        :return: dict if request was successful, None otherwise
         """
         if len(self._auth) < 2:
             logger.warn("Blocking request: Authentication required")
@@ -163,5 +143,11 @@ class OpenSkyApi(object):
                                      params={"time": int(t), "icao24": icao24,
                                                              "serials": serials})
         if states_json is not None:
-            return OpenSkyStates(states_json)
+            return {
+                    'time': states_json['time'],
+                    'states': [
+                        {**dict(zip(OpenSkyApi.keys, elements))}
+                        for elements in states_json['states']
+                        ],
+                    }
         return None
