@@ -21,14 +21,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-import sys
 import calendar
 import logging
-import pprint
 import requests
 
 from datetime import datetime
-from collections import defaultdict
+from collections import Counter
 import time
 
 logging.basicConfig()
@@ -69,7 +67,7 @@ class OpenSkyApi(object):
         else:
             self._auth = ()
         self._api_url = "https://opensky-network.org/api"
-        self._last_requests = defaultdict(lambda: 0)
+        self._last_requests = Counter()
 
     def _get_json(self, url_post, callee, params=None):
         r = requests.get("{0:s}{1:s}".format(self._api_url, url_post),
@@ -114,7 +112,7 @@ class OpenSkyApi(object):
             return {
                     'time': states_json['time'],
                     'states': [
-                        {**dict(zip(OpenSkyApi.keys, elements))}
+                        dict(zip(OpenSkyApi.keys, elements))
                         for elements in states_json['states']
                         ],
                     }
@@ -146,7 +144,7 @@ class OpenSkyApi(object):
             return {
                     'time': states_json['time'],
                     'states': [
-                        {**dict(zip(OpenSkyApi.keys, elements))}
+                        dict(zip(OpenSkyApi.keys, elements))
                         for elements in states_json['states']
                         ],
                     }
